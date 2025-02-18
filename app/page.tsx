@@ -51,9 +51,9 @@ export default function Home() {
 
     // Time (HHMM) formatını regex ile kontrol edelim (00:00 ~ 23:59)
     // 2 haneli saat (00-23), 2 haneli dakika (00-59):
-    const timeRegex = /^(0\d|1\d|2[0-3])([0-5]\d)$/; 
+    const timeRegex = /^(0\d|1\d|2[0-3])([0-5]\d)$/;
     if (!timeRegex.test(time)) {
-      setError("Please enter the time with following syntax HHMM ex:1330).");
+      setError("Please enter the time with following syntax HHMM (ex: 1330).");
       return;
     }
 
@@ -111,8 +111,8 @@ export default function Home() {
                   filteredCountries.map((item) => (
                     <div
                       key={item.code}
-                      className={`px-3 py-2 hover:bg-gray-700 cursor-pointer ${
-                        country?.code === item.code ? "bg-gray-700" : ""
+                      className={`px-3 py-2 cursor-pointer hover:bg-gray-700 transition-colors ${
+                        country?.code === item.code ? "bg-green-500" : ""
                       }`}
                       onClick={() => {
                         setCountry(item);
@@ -146,9 +146,7 @@ export default function Home() {
               maxLength={4}
               className="w-full p-2 rounded bg-gray-900 border border-gray-600 placeholder-gray-500 focus:border-blue-500 focus:ring focus:ring-blue-500/20 transition-colors"
               value={time}
-              onChange={(e) => {
-                setTime(e.target.value);
-              }}
+              onChange={(e) => setTime(e.target.value)}
             />
           </div>
 
