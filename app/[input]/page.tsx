@@ -1,22 +1,17 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { use } from 'react';
-import { DateTime } from 'luxon';
+import React, { useState } from "react";
+import { use } from "react";
+import { DateTime } from "luxon";
+import Link from "next/link";
+import countriesData from "world-countries";
+import moment from "moment-timezone";
+import flags from "emoji-flags";
+import { useRouter } from "next/navigation";
 
-// Third-party packages
-import countriesData from 'world-countries';
-import moment from 'moment-timezone';
-import flags from 'emoji-flags';
+import CountrySelector, { Country } from "@/components/CountrySelector";
 
-// Next.js <Link> for internal navigation
-import Link from 'next/link';
-
-// Your custom CountrySelector component
-import CountrySelector, { Country } from '@/components/CountrySelector';
-
-// Example country codes to display if user input is invalid
-const EXAMPLE_COUNTRY_CODES = ['TR', 'US', 'NL', 'FR', 'DE', 'GB', 'IT', 'ES'];
+const EXAMPLE_COUNTRY_CODES = ["TR", "US", "NL", "FR", "DE", "GB", "IT", "ES"];
 
 interface TimezonePageProps {
   // In Next.js 13 with the App Router, "params" can be a Promise<{ input: string }>
@@ -25,7 +20,7 @@ interface TimezonePageProps {
 
 /** Returns a flag emoji (or fallback) for a given country code */
 function getFlagEmoji(countryCode: string) {
-  return flags.countryCode(countryCode)?.emoji || '🏳';
+  return flags.countryCode(countryCode)?.emoji || "🏳";
 }
 
 /** Returns the primary timezone from moment-timezone for a given two-letter country code */
@@ -34,7 +29,7 @@ function getPrimaryTimezone(countryCode: string) {
   if (tzList && tzList.length > 0) {
     return tzList[0];
   }
-  return 'UTC';
+  return "UTC";
 }
 
 /** Renders a warning screen for invalid or missing input */
@@ -68,7 +63,6 @@ const WarningScreen = ({
       ))}
     </ul>
 
-    {/* Next.js Link for internal routing to "/searchhelp" */}
     <p className="text-md text-blue-600 underline hover:text-blue-800">
       <Link href="/searchhelp">
         Click here for Search Help (all country codes)
@@ -78,19 +72,20 @@ const WarningScreen = ({
 );
 
 export default function TimezonePage({ params }: TimezonePageProps) {
-  /*******************************
-   * 1) HOOKS AND INITIAL SETUP  *
-   *******************************/
-  // Keep track of user-selected countries from the right panel
+  const router = useRouter();
   const [selectedCountries, setSelectedCountries] = useState<Country[]>([]);
 
-  // Extract "input" (like "tr1330") from the URL params
+  // "isChanging" state'i, "Change Country & Time" butonuna basıldığında 
+  // küçük bir form açıp, yeni ülke ve saat girmeyi sağlar.
+  const [isChanging, setIsChanging] = useState(false);
+  const [newCountry, setNewCountry] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [error, setError] = useState("");
+
+  // orijinal parametreleri alalım
   const { input } = use(params);
 
-  /*****************************
-   * 2) HANDLE INVALID INPUT   *
-   *****************************/
-  // Check if there's any input at all, and if it has at least 4 characters
+  // 1) Geçersiz input kontrolü
   if (!input || input.length < 4) {
     return (
       <WarningScreen
@@ -102,11 +97,11 @@ export default function TimezonePage({ params }: TimezonePageProps) {
     );
   }
 
-  // countryCode = first 2 letters (e.g. "TR"), timeStr = next 4 digits (e.g. "1330")
+  // Ülke kodu (ilk 2 harf) ve saat (sonraki 4 rakam)
   const countryCode = input.slice(0, 2).toUpperCase();
   const timeStr = input.slice(2);
 
-  // timeStr must be 4 digits (e.g. "1330") to parse hours and minutes
+  // 2) Geçersiz saat kontrolü
   if (timeStr.length !== 4 || isNaN(Number(timeStr))) {
     return (
       <WarningScreen
@@ -118,11 +113,11 @@ export default function TimezonePage({ params }: TimezonePageProps) {
     );
   }
 
-  // Parse hour and minute
+  // saat & dakika parse
   const hour = parseInt(timeStr.substring(0, 2), 10);
   const minute = parseInt(timeStr.substring(2, 4), 10);
 
-  // Check if the provided country code exists in "world-countries"
+  // 3) Ülke kodunun world-countries'te olup olmadığını kontrol et
   const matchedCountry = countriesData.find(
     (c) => c.cca2.toUpperCase() === countryCode
   );
@@ -137,10 +132,10 @@ export default function TimezonePage({ params }: TimezonePageProps) {
     );
   }
 
-  // Determine the base timezone for that country
+  // 4) Temel timezone bul
   const baseZone = getPrimaryTimezone(matchedCountry.cca2);
 
-  // Interpret the input time in that country's time zone
+  // 5) Luxon ile yerel saati oluştur
   const baseTime = DateTime.fromObject({ hour, minute }, { zone: baseZone });
   if (!baseTime.isValid) {
     return (
@@ -153,44 +148,59 @@ export default function TimezonePage({ params }: TimezonePageProps) {
     );
   }
 
-  /***********************************
-   * 3) PREPARE DATA AND FUNCTIONS   *
-   ***********************************/
-  // Display the base country's local time in a 12-hour format, e.g. "1.30 PM"
-  const formattedLocalTime = baseTime.toFormat('h.mm a');
-
-  // Get the official country name and flag
+  // Ülke adı ve bayrak
   const countryName = matchedCountry.name.common;
   const countryFlag = getFlagEmoji(matchedCountry.cca2);
 
-  // Helper: Convert baseTime to another country's local time
+  // Gösterim için 12 saat formatı (örnek: 1.31 PM)
+  const formattedLocalTime = baseTime.toFormat("h.mm a");
+
+  // Seçili ülke listesindeki times conversion:
   function getCountryTime(timezone: string) {
     try {
-      return baseTime.setZone(timezone).toFormat('h:mm a');
+      return baseTime.setZone(timezone).toFormat("h:mm a");
     } catch {
-      // Fallback if time zone is invalid
-      return baseTime.setZone('UTC').toFormat('h:mm a');
+      return baseTime.setZone("UTC").toFormat("h:mm a");
     }
   }
 
-  // Handler: "Clear All" button to reset selectedCountries
+  // "Clear All" butonu
   function handleClearAll() {
     setSelectedCountries([]);
   }
 
-  /************************
-   * 4) RENDER THE PAGE   *
-   ************************/
+  // "Change Country & Time" butonunun form gönderimi
+  function handleChangeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    // newCountry en az 2 karakter olmalı (örn: TR)
+    if (!newCountry || newCountry.length < 2) {
+      setError("Please enter a valid 2-letter country code (e.g., TR).");
+      return;
+    }
+
+    // timeRegex ile HHMM formatı kontrolü
+    const timeRegex = /^(0\d|1\d|2[0-3])([0-5]\d)$/;
+    if (!timeRegex.test(newTime)) {
+      setError("Please enter a valid time (HHMM), e.g. 1330.");
+      return;
+    }
+
+    // Başarılıysa rotaya yönlendir (örn: "/tr1330")
+    router.push(`/${newCountry.toLowerCase()}${newTime}`);
+  }
+
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-gray-50 text-gray-900">
-      {/* Left Panel - base country info & selected countries */}
+      {/* Sol Panel */}
       <div className="lg:w-1/2 p-6 lg:p-8 border-b lg:border-r border-gray-200">
-        {/* Page Title linking back to home */}
+        {/* Sayfa başlığı */}
         <h1 className="text-2xl lg:text-3xl font-bold mb-6 hover:underline transition-colors">
           <Link href="/">Time Zone Baby</Link>
         </h1>
 
-        {/* Base country's info */}
+        {/* Temel ülke bilgisi */}
         <div className="mb-8 p-4 bg-blue-50 rounded-lg">
           <p className="text-lg font-semibold text-blue-800">
             Country: {countryName} {countryFlag}
@@ -198,19 +208,83 @@ export default function TimezonePage({ params }: TimezonePageProps) {
           <p className="text-lg font-semibold text-blue-800">
             Time: {formattedLocalTime}
           </p>
-          <p className="text-sm text-gray-600 mt-2">
-            (Local time in {baseZone})
-          </p>
+          <p className="text-sm text-gray-600 mt-2">(Local time in {baseZone})</p>
+
+          {/* "Change Country & Time" butonu */}
+          {!isChanging && (
+            <button
+              onClick={() => setIsChanging(true)}
+              className="mt-4 px-3 py-2 bg-indigo-600 text-white rounded
+                         hover:bg-indigo-700 transition-colors"
+            >
+              Change Country &amp; Time
+            </button>
+          )}
+
+          {/* Eğer isChanging true ise mini bir form açılır */}
+          {isChanging && (
+            <form onSubmit={handleChangeSubmit} className="mt-4 bg-white p-4 rounded shadow">
+              {/* Hata Mesajı */}
+              {error && <div className="text-red-600 mb-2">{error}</div>}
+
+              <div className="mb-2">
+                <label className="block mb-1 font-semibold text-gray-700">
+                  New Country Code (e.g. TR)
+                </label>
+                <input
+                  type="text"
+                  className="border border-gray-300 rounded w-full p-2 text-gray-900"
+                  maxLength={2}
+                  value={newCountry}
+                  onChange={(e) => setNewCountry(e.target.value.toUpperCase())}
+                />
+              </div>
+
+              <div className="mb-2">
+                <label className="block mb-1 font-semibold text-gray-700">
+                  New Time (HHMM)
+                </label>
+                <input
+                  type="text"
+                  className="border border-gray-300 rounded w-full p-2 text-gray-900"
+                  maxLength={4}
+                  placeholder="1330"
+                  value={newTime}
+                  onChange={(e) => setNewTime(e.target.value)}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Update
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsChanging(false);
+                  setError("");
+                  setNewCountry("");
+                  setNewTime("");
+                }}
+                className="ml-2 mt-2 px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </form>
+          )}
         </div>
 
-        {/* Selected Countries section */}
+        {/* Seçilen Ülkeler Listesi */}
         {selectedCountries.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Selected Countries</h2>
               <button
                 onClick={handleClearAll}
-                className="px-3 py-1 text-sm bg-red-500 text-white rounded 
+                className="px-3 py-1 text-sm bg-red-500 text-white rounded
                            hover:bg-red-600 transition-transform transform hover:scale-105"
               >
                 Clear All
@@ -220,7 +294,7 @@ export default function TimezonePage({ params }: TimezonePageProps) {
               {selectedCountries.map((country) => (
                 <div
                   key={country.code}
-                  className="p-4 bg-white rounded-lg shadow flex items-center gap-4 
+                  className="p-4 bg-white rounded-lg shadow flex items-center gap-4
                              transition-transform transform hover:scale-105"
                 >
                   <span className="text-2xl">{country.flag}</span>
@@ -236,18 +310,18 @@ export default function TimezonePage({ params }: TimezonePageProps) {
           </div>
         )}
 
-        {/* Default Time Zones (e.g., Istanbul, Paris, LA) */}
+        {/* Varsayılan Saat Dilimleri (İstanbul, Paris, LA) */}
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Default Time Zones</h2>
           <div className="space-y-3">
             {[
-              { name: 'Istanbul', zone: 'Europe/Istanbul', flag: '🇹🇷' },
-              { name: 'CET (Paris)', zone: 'Europe/Paris', flag: '🇫🇷' },
-              { name: 'Pacific (LA)', zone: 'America/Los_Angeles', flag: '🇺🇸' },
+              { name: "Istanbul", zone: "Europe/Istanbul", flag: "🇹🇷" },
+              { name: "CET (Paris)", zone: "Europe/Paris", flag: "🇫🇷" },
+              { name: "Pacific (LA)", zone: "America/Los_Angeles", flag: "🇺🇸" },
             ].map((tz) => (
               <div
                 key={tz.zone}
-                className="p-4 bg-white rounded-lg shadow flex items-center gap-4 
+                className="p-4 bg-white rounded-lg shadow flex items-center gap-4
                            transition-transform transform hover:scale-105"
               >
                 <span className="text-2xl">{tz.flag}</span>
@@ -263,15 +337,13 @@ export default function TimezonePage({ params }: TimezonePageProps) {
         </div>
       </div>
 
-      {/* Right Panel - CountrySelector component */}
+      {/* Sağ Panel - CountrySelector */}
       <div className="lg:w-1/2 p-6 lg:p-8 bg-white">
         <CountrySelector
           onSelectCountry={(country) => {
-            // Only add this country if not already in the list
+            // Aynı ülke birden fazla eklenmesin
             setSelectedCountries((prev) =>
-              prev.some((c) => c.code === country.code)
-                ? prev
-                : [...prev, country]
+              prev.some((c) => c.code === country.code) ? prev : [...prev, country]
             );
           }}
         />
