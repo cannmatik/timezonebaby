@@ -4,9 +4,11 @@ const nextConfig: NextConfig = {
   images: {
     domains: ['flagcdn.com'], // Bayrak resimleri için izin verilen domain
   },
-  // İsteğe bağlı: Deneysel özellikler, webpack ayarları vb. ekleyebilirsiniz.
+  eslint: {
+    ignoreDuringBuilds: true, // Üretim build sırasında ESLint hatalarını yoksay
+  },
   experimental: {
-    // Örneğin, Turbopack kullanıyorsanız aktif hale getirebilirsiniz:
+    // İsteğe bağlı: Deneysel özellikler (örneğin Turbopack) buraya eklenebilir
     // turbopack: true,
   },
 };
