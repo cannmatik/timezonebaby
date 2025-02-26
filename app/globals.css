@@ -19,3 +19,16 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* react-time-picker veya react-clock bileşenlerine özel class'lar ekleyerek 
+   Tailwind veya kendi CSS’inizle stillendirebilirsiniz.
+   Örneğin: */
+.react-time-picker {
+  --gap: 0.5rem;
+  --button-border: 1px solid #ccc;
+  /* ... vs */
+}
+
+.react-clock {
+  /* Saat çarkının stilleri */
+}
