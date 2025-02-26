@@ -13,20 +13,6 @@ import CountrySelector, { Country } from "@/components/CountrySelector";
 
 const EXAMPLE_COUNTRY_CODES = ["TR", "US", "NL", "FR", "DE", "GB", "IT", "ES"];
 
-/** Returns a flag emoji (or fallback) for a given country code */
-function getFlagEmoji(countryCode: string) {
-  return flags.countryCode(countryCode)?.emoji || "🏳";
-}
-
-/** Returns the primary timezone from moment-timezone for a given two-letter country code */
-function getPrimaryTimezone(countryCode: string) {
-  const tzList = moment.tz.zonesForCountry(countryCode);
-  if (tzList && tzList.length > 0) {
-    return tzList[0];
-  }
-  return "UTC";
-}
-
 /** Renders a warning screen for invalid or missing input */
 const WarningScreen = ({
   title,
@@ -67,30 +53,30 @@ const WarningScreen = ({
 );
 
 interface TimezonePageProps {
-  // In Next.js 13 with the App Router, "params" can be a Promise<{ input: string }>
+  // Next.js 13 with the App Router
   params: Promise<{ input: string }>;
 }
 
 /**
- * This page shows the local time for /[input], e.g. /TR1330 => 13:30 in Turkey,
- * or /INnow => current time in India.
+ * This page shows the local time for /[input].
+ * Examples:
+ *   /TR1330 => 13:30 in Turkey
+ *   /INnow  => current time in India
  */
 export default function TimezonePage({ params }: TimezonePageProps) {
   const router = useRouter();
+
+  // For listing selected countries on the left
   const [selectedCountries, setSelectedCountries] = useState<Country[]>([]);
 
-  // "isChanging" controls the "Change Country & Time" mini-form
+  // Handling the "Change Country & Time" mini-form
   const [isChanging, setIsChanging] = useState(false);
   const [newCountry, setNewCountry] = useState("");
   const [newTime, setNewTime] = useState("");
   const [error, setError] = useState("");
 
-  // Get the dynamic route param
+  // 1) Get the dynamic route param
   const { input } = use(params);
-
-  /*******************************
-   * 1) Validate the URL "input" *
-   *******************************/
   if (!input || input.length < 2) {
     return (
       <WarningScreen
@@ -102,13 +88,11 @@ export default function TimezonePage({ params }: TimezonePageProps) {
     );
   }
 
-  // Example inputs:
-  //  - "TR1330" => countryCode = "TR", timeStr = "1330"
-  //  - "INnow"  => countryCode = "IN", timeStr = "now"
+  // 2) Country code & time part
   const countryCode = input.slice(0, 2).toUpperCase();
   const remainingPart = input.slice(2).toLowerCase();
 
-  // Check if the country code is valid
+  // Check if country code is valid
   const matchedCountry = countriesData.find(
     (c) => c.cca2.toUpperCase() === countryCode
   );
@@ -123,17 +107,23 @@ export default function TimezonePage({ params }: TimezonePageProps) {
     );
   }
 
-  // figure out hour and minute
-  let hour: number | null = null;
-  let minute: number | null = null;
+  // Build a DateTime in that country's timezone
+  let baseTime: DateTime;
+  // Helper to pick the primary timezone from moment
+  function getPrimaryTimezone(code: string) {
+    const tzList = moment.tz.zonesForCountry(code);
+    if (tzList && tzList.length > 0) {
+      return tzList[0];
+    }
+    return "UTC";
+  }
+  const baseZone = getPrimaryTimezone(matchedCountry.cca2);
 
+  // 3) If "now", use real local time in that zone
   if (remainingPart === "now") {
-    // The user wants the current time (system time)
-    const now = new Date();
-    hour = now.getHours();
-    minute = now.getMinutes();
+    baseTime = DateTime.now().setZone(baseZone);
   } else {
-    // The user gave a 4-digit time
+    // Otherwise, parse HHMM
     if (remainingPart.length !== 4 || isNaN(Number(remainingPart))) {
       return (
         <WarningScreen
@@ -144,50 +134,28 @@ export default function TimezonePage({ params }: TimezonePageProps) {
         />
       );
     }
-    hour = parseInt(remainingPart.substring(0, 2), 10);
-    minute = parseInt(remainingPart.substring(2, 4), 10);
-  }
+    const hour = parseInt(remainingPart.substring(0, 2), 10);
+    const minute = parseInt(remainingPart.substring(2, 4), 10);
 
-  // 2) Determine time zone
-  function getPrimaryTimezone(countryCode: string) {
-    const tzList = moment.tz.zonesForCountry(countryCode);
-    if (tzList && tzList.length > 0) {
-      return tzList[0];
+    baseTime = DateTime.fromObject({ hour, minute }, { zone: baseZone });
+    if (!baseTime.isValid) {
+      return (
+        <WarningScreen
+          title="Warning"
+          message="Invalid time or time zone."
+          usageExample="www.timezone.baby/INnow or /TR1330"
+          validCodes={EXAMPLE_COUNTRY_CODES}
+        />
+      );
     }
-    return "UTC";
-  }
-  const baseZone = getPrimaryTimezone(matchedCountry.cca2);
-
-  // 3) Create a Luxon DateTime from hour, minute, zone
-  if (hour == null || minute == null) {
-    return (
-      <WarningScreen
-        title="Warning"
-        message="Invalid time format or incomplete input."
-        usageExample="www.timezone.baby/INnow or /TR1330"
-        validCodes={EXAMPLE_COUNTRY_CODES}
-      />
-    );
   }
 
-  const baseTime = DateTime.fromObject({ hour, minute }, { zone: baseZone });
-  if (!baseTime.isValid) {
-    return (
-      <WarningScreen
-        title="Warning"
-        message="Invalid time or time zone."
-        usageExample="www.timezone.baby/INnow or /TR1330"
-        validCodes={EXAMPLE_COUNTRY_CODES}
-      />
-    );
-  }
-
-  // 4) Show info
+  // 4) Prepare display info
   const countryName = matchedCountry.name.common;
-  const countryFlag = flags.countryCode(matchedCountry.cca2)?.emoji || "🏳";
+  const flagEmoji = flags.countryCode(matchedCountry.cca2)?.emoji || "🏳";
   const formattedLocalTime = baseTime.toFormat("h.mm a");
 
-  // Convert baseTime to another country's local time
+  // Helper: for the "Selected Countries" panel
   function getCountryTime(timezone: string) {
     try {
       return baseTime.setZone(timezone).toFormat("h:mm a");
@@ -196,12 +164,12 @@ export default function TimezonePage({ params }: TimezonePageProps) {
     }
   }
 
-  // "Clear All" button
+  // Clear all selected countries
   function handleClearAll() {
     setSelectedCountries([]);
   }
 
-  // The mini-form for changing country/time
+  // "Change Country & Time" mini-form
   function handleChangeSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -210,12 +178,12 @@ export default function TimezonePage({ params }: TimezonePageProps) {
       setError("Please enter a valid 2-letter country code (e.g., TR).");
       return;
     }
-    // If "now", we skip time format check
+    // If user typed 'now', skip the HHMM check
     if (newTime.toLowerCase() === "now") {
       router.push(`/${newCountry.toLowerCase()}now`);
       return;
     }
-    // Otherwise, HHMM check
+    // Otherwise check HHMM
     const timeRegex = /^(0\d|1\d|2[0-3])([0-5]\d)$/;
     if (!timeRegex.test(newTime)) {
       setError("Please enter a valid time (HHMM), e.g. 1330 or 'now'.");
@@ -237,7 +205,7 @@ export default function TimezonePage({ params }: TimezonePageProps) {
         {/* Base Country Info */}
         <div className="mb-8 p-4 bg-blue-50 rounded-lg">
           <p className="text-lg font-semibold text-blue-800">
-            Country: {countryName} {countryFlag}
+            Country: {countryName} {flagEmoji}
           </p>
           <p className="text-lg font-semibold text-blue-800">
             Time: {formattedLocalTime}
@@ -257,9 +225,11 @@ export default function TimezonePage({ params }: TimezonePageProps) {
             </button>
           )}
 
-          {/* If isChanging = true, show the mini form */}
           {isChanging && (
-            <form onSubmit={handleChangeSubmit} className="mt-4 bg-white p-4 rounded shadow">
+            <form
+              onSubmit={handleChangeSubmit}
+              className="mt-4 bg-white p-4 rounded shadow"
+            >
               {error && <div className="text-red-600 mb-2">{error}</div>}
 
               <div className="mb-2">
@@ -268,9 +238,9 @@ export default function TimezonePage({ params }: TimezonePageProps) {
                 </label>
                 <input
                   type="text"
-                  className="border border-gray-300 rounded w-full p-2 text-gray-900"
                   maxLength={2}
                   placeholder="IN"
+                  className="border border-gray-300 rounded w-full p-2 text-gray-900"
                   value={newCountry}
                   onChange={(e) => setNewCountry(e.target.value.toUpperCase())}
                 />
@@ -282,9 +252,9 @@ export default function TimezonePage({ params }: TimezonePageProps) {
                 </label>
                 <input
                   type="text"
-                  className="border border-gray-300 rounded w-full p-2 text-gray-900"
                   maxLength={4}
                   placeholder="1330 or now"
+                  className="border border-gray-300 rounded w-full p-2 text-gray-900"
                   value={newTime}
                   onChange={(e) => setNewTime(e.target.value)}
                 />
@@ -296,7 +266,6 @@ export default function TimezonePage({ params }: TimezonePageProps) {
               >
                 Update
               </button>
-
               <button
                 type="button"
                 onClick={() => {
@@ -319,7 +288,7 @@ export default function TimezonePage({ params }: TimezonePageProps) {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Selected Countries</h2>
               <button
-                onClick={() => handleClearAll()}
+                onClick={handleClearAll}
                 className="px-3 py-1 text-sm bg-red-500 text-white rounded 
                            hover:bg-red-600 transition-transform transform hover:scale-105"
               >
@@ -346,7 +315,7 @@ export default function TimezonePage({ params }: TimezonePageProps) {
           </div>
         )}
 
-        {/* Popular Timezones (Renamed from "Default Time Zones") */}
+        {/* Popular Timezones */}
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Popular Timezones</h2>
           <div className="space-y-3">
@@ -354,7 +323,7 @@ export default function TimezonePage({ params }: TimezonePageProps) {
               { name: "Istanbul", zone: "Europe/Istanbul", flag: "🇹🇷" },
               { name: "CET (Paris)", zone: "Europe/Paris", flag: "🇫🇷" },
               { name: "Pacific (LA)", zone: "America/Los_Angeles", flag: "🇺🇸" },
-              { name: "India (IST)", zone: "Asia/Kolkata", flag: "🇮🇳" }, // <--- ADDED
+              { name: "India (IST)", zone: "Asia/Kolkata", flag: "🇮🇳" },
             ].map((tz) => (
               <div
                 key={tz.zone}
@@ -374,7 +343,7 @@ export default function TimezonePage({ params }: TimezonePageProps) {
         </div>
       </div>
 
-      {/* Right Panel - CountrySelector */}
+      {/* Right Panel */}
       <div className="lg:w-1/2 p-6 lg:p-8 bg-white">
         <CountrySelector
           onSelectCountry={(c) => {
