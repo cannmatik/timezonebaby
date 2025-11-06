@@ -1,30 +1,200 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { use } from "react";
 import { DateTime } from "luxon";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Head from "next/head"; // Meta etiketleri için
+import Head from "next/head";
 import countriesData from "world-countries";
 import moment from "moment-timezone";
-import flags from "emoji-flags";
+import * as Flags from "country-flag-icons/react/3x2";
+import { 
+  GlobeAltIcon,
+  ChevronDownIcon, 
+  ChevronUpIcon, 
+  XMarkIcon, 
+  MagnifyingGlassIcon 
+} from "@heroicons/react/24/outline";
 
-import TimePicker from "react-time-picker";
+// MUI Imports
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { TimePicker } from "@mui/x-date-pickers/TimePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
+import { 
+  TextField, 
+  Radio, 
+  RadioGroup, 
+  FormControlLabel, 
+  FormControl, 
+  FormLabel, 
+  Button, 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  Typography, 
+  Box, 
+  IconButton, 
+  List, 
+  ListItem, 
+  ListItemText, 
+  Collapse,
+  ListItemButton,
+  Chip,
+  Alert,
+  Paper,
+  Container
+} from "@mui/material";
+
 import CountrySelector, { Country } from "@/components/CountrySelector";
 
-/** Example valid codes for warning screen */
-const EXAMPLE_CODES = ["TR", "US", "FR", "DE", "GB", "CET", "IST", "PST", "UTC"];
+// DeepSeek inspired theme - Clean, modern, professional
+const theme = createTheme({
+  palette: {
+    mode: "light",
+    primary: {
+      main: "#1a73e8",
+      light: "#4285f4",
+      dark: "#0d47a1",
+    },
+    secondary: {
+      main: "#5f6368",
+    },
+    background: {
+      default: "#f8f9fa",
+      paper: "#ffffff",
+    },
+    text: {
+      primary: "#202124",
+      secondary: "#5f6368",
+    },
+    divider: "#dadce0",
+  },
+  shape: {
+    borderRadius: 8,
+  },
+  typography: {
+    fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+    h1: {
+      fontSize: "2.5rem",
+      fontWeight: 600,
+      lineHeight: 1.2,
+    },
+    h2: {
+      fontSize: "2rem",
+      fontWeight: 600,
+      lineHeight: 1.3,
+    },
+    h3: {
+      fontSize: "1.75rem",
+      fontWeight: 600,
+      lineHeight: 1.3,
+    },
+    h4: {
+      fontSize: "1.5rem",
+      fontWeight: 500,
+      lineHeight: 1.4,
+    },
+    body1: {
+      fontSize: "1rem",
+      lineHeight: 1.6,
+    },
+    body2: {
+      fontSize: "0.875rem",
+      lineHeight: 1.5,
+    },
+  },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          border: "1px solid #e8eaed",
+          transition: "box-shadow 0.2s ease",
+          "&:hover": {
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          },
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          textTransform: "none",
+          fontWeight: 500,
+          fontSize: "0.875rem",
+          padding: "8px 16px",
+        },
+        contained: {
+          backgroundColor: "#1a73e8",
+          color: "white",
+          "&:hover": {
+            backgroundColor: "#0d47a1",
+          },
+        },
+        outlined: {
+          borderColor: "#dadce0",
+          color: "#1a73e8",
+          "&:hover": {
+            borderColor: "#1a73e8",
+            backgroundColor: "rgba(26, 115, 232, 0.04)",
+          },
+        },
+      },
+    },
+  },
+});
 
-/** Special timezone abbreviations */
-const SPECIAL_TZ_MAP: Record<string, string> = {
+// FlagComponent type
+type FlagComponent = React.ComponentType<{ className?: string; title?: string }>;
+
+/** Common timezone abbreviations */
+const getSpecialTzMap = (): Record<string, string> => ({
   CET: "Europe/Paris",
   IST: "Asia/Kolkata",
   PST: "America/Los_Angeles",
   UTC: "UTC",
-};
+  EST: "America/New_York",
+  GMT: "Europe/London",
+  JST: "Asia/Tokyo",
+  AEST: "Australia/Sydney",
+});
 
-/** Warning screen component */
+/** Get timezone info */
+function getTimeZoneFromCode(code: string): { timezone: string; displayName: string; flagComponent: React.ReactNode } | null {
+  const upperCode = code.toUpperCase();
+  const specialMap = getSpecialTzMap();
+
+  if (specialMap[upperCode]) {
+    return {
+      timezone: specialMap[upperCode],
+      displayName: upperCode,
+      flagComponent: <GlobeAltIcon className="w-6 h-4 text-blue-500" />,
+    };
+  }
+
+  if (upperCode.length === 2) {
+    const matchedCountry = countriesData.find((c) => c.cca2.toUpperCase() === upperCode);
+    if (matchedCountry) {
+      const primaryTz = moment.tz.zonesForCountry(matchedCountry.cca2)[0] || null;
+      if (primaryTz) {
+        const FlagComponent = Flags[matchedCountry.cca2.toUpperCase() as keyof typeof Flags] as FlagComponent;
+        return {
+          timezone: primaryTz,
+          displayName: matchedCountry.name.common,
+          flagComponent: <FlagComponent className="w-6 h-4" />,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/** Warning screen */
 const WarningScreen = ({
   title,
   message,
@@ -36,85 +206,115 @@ const WarningScreen = ({
   usageExample: string;
   validCodes: string[];
 }) => (
-  <div className="p-6 text-gray-800 bg-white min-h-screen flex flex-col items-center justify-center">
-    <h1 className="text-3xl font-bold mb-4 text-red-600">{title}</h1>
-    <p className="text-lg text-gray-700 mb-4">{message}</p>
-    <p className="text-md text-gray-600 mb-4">
-      Correct usage: <code>/codeHHMM</code> or <code>/codenow</code>
-    </p>
-    <p className="text-md text-gray-600 mb-4">Example: <code>{usageExample}</code></p>
-    <p className="text-md text-gray-600 mb-2">Valid codes:</p>
-    <ul className="list-disc text-gray-600 pl-5 mb-4">
-      {validCodes.map((code) => (
-        <li key={code}>{code}</li>
-      ))}
-    </ul>
-    <p className="text-md text-blue-600 underline hover:text-blue-800">
-      <Link href="/searchhelp">Click here for Search Help (all country codes)</Link>
-    </p>
-  </div>
+  <ThemeProvider theme={theme}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "background.default",
+        p: 3,
+      }}
+    >
+      <Card sx={{ maxWidth: 450, width: "100%", textAlign: "center" }}>
+        <CardContent sx={{ p: 4 }}>
+          <Box 
+            sx={{ 
+              width: 64, 
+              height: 64, 
+              mx: "auto", 
+              mb: 3, 
+              bgcolor: "primary.main", 
+              borderRadius: "50%", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center" 
+            }}
+          >
+            <MagnifyingGlassIcon className="w-8 h-8" style={{ color: "white" }} />
+          </Box>
+          <Typography variant="h4" component="h1" color="primary" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+            {title}
+          </Typography>
+          <Typography variant="body1" color="text.secondary" paragraph sx={{ mb: 3 }}>
+            {message}
+          </Typography>
+          <Paper sx={{ bgcolor: "background.paper", p: 2, borderRadius: 2, mb: 3, border: "1px solid #e8eaed" }}>
+            <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500 }}>
+              <strong>Correct format:</strong> <code>/codeHHMM</code> or <code>/codenow</code>
+            </Typography>
+            <Typography variant="body2" color="text.primary" sx={{ mt: 1 }}>
+              Example: <code style={{ backgroundColor: "#e8f0fe", color: "#1a73e8", padding: "4px 8px", borderRadius: 4, fontFamily: "monospace" }}>{usageExample}</code>
+            </Typography>
+          </Paper>
+          <Typography variant="body2" color="text.primary" gutterBottom sx={{ fontWeight: 500, mb: 2 }}>
+            Valid codes (examples):
+          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, justifyContent: "center", mb: 3 }}>
+            {validCodes.map((code) => (
+              <Chip 
+                key={code} 
+                label={code} 
+                variant="outlined" 
+                size="small"
+                sx={{ 
+                  borderColor: "#dadce0",
+                  color: "text.primary",
+                  fontWeight: 500
+                }} 
+              />
+            ))}
+          </Box>
+          <Link href="/searchhelp" style={{ textDecoration: "none" }}>
+            <Button
+              variant="contained"
+              startIcon={<MagnifyingGlassIcon className="w-4 h-4" />}
+              color="primary"
+              sx={{ borderRadius: 2 }}
+            >
+              Search Help & Country Codes
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    </Box>
+  </ThemeProvider>
 );
 
 interface TimezonePageProps {
   params: Promise<{ input: string }>;
 }
 
-/** Get primary timezone for a country */
-function getPrimaryTimezoneForCountry(cca2: string): string | null {
-  const tzList = moment.tz.zonesForCountry(cca2);
-  return tzList && tzList.length > 0 ? tzList[0] : null;
-}
-
-/** Validate time string */
-function isValidTimeString(timeStr: string): boolean {
-  if (timeStr.toLowerCase() === "now") return true;
-  return timeStr.length === 4 && !isNaN(Number(timeStr));
-}
-
-/** Get timezone info from code */
-function getTimeZoneFromCode(code: string) {
-  const upperCode = code.toUpperCase();
-
-  if (SPECIAL_TZ_MAP[upperCode]) {
-    return {
-      timezone: SPECIAL_TZ_MAP[upperCode],
-      displayName: upperCode,
-      flagEmoji: "", // Special codes have no flag by default
-    };
-  }
-
-  if (upperCode.length === 2) {
-    const matchedCountry = countriesData.find((c) => c.cca2.toUpperCase() === upperCode);
-    if (matchedCountry) {
-      const primaryTz = getPrimaryTimezoneForCountry(matchedCountry.cca2);
-      if (primaryTz) {
-        const flag = flags.countryCode(matchedCountry.cca2)?.emoji || "🏳";
-        return {
-          timezone: primaryTz,
-          displayName: matchedCountry.name.common,
-          flagEmoji: flag,
-        };
-      }
-    }
-  }
-
-  return null;
-}
-
-/** Parse user input (e.g., "CETnow", "TR1330") */
 function parseUserInput(input: string) {
-  const cleaned = input.trim();
+  const cleaned = input.trim().toUpperCase();
 
-  for (const codeLen of [4, 3, 2]) {
-    if (cleaned.length < codeLen) continue;
+  for (const codeLen of [3, 2]) {
+    if (cleaned.length < codeLen + 3) continue; // Min length for "now"
 
-    const codePart = cleaned.slice(0, codeLen).toUpperCase();
+    const codePart = cleaned.slice(0, codeLen);
     const timePart = cleaned.slice(codeLen).toLowerCase();
 
-    const zoneInfo = getTimeZoneFromCode(codePart);
-    if (!zoneInfo || !isValidTimeString(timePart)) continue;
+    let isValidTime = false;
+    if (timePart === "now") {
+      isValidTime = true;
+    } else if (
+      timePart.length === 4 &&
+      /^\d{4}$/.test(timePart) &&
+      parseInt(timePart.substring(0, 2), 10) <= 23 &&
+      parseInt(timePart.substring(2, 4), 10) <= 59
+    ) {
+      isValidTime = true;
+    }
 
-    return { codePart, timePart, zoneInfo };
+    if (!isValidTime) {
+      continue;
+    }
+
+    const zoneInfo = getTimeZoneFromCode(codePart);
+    if (zoneInfo) {
+      return { codePart, timePart, zoneInfo };
+    }
   }
 
   return null;
@@ -122,23 +322,25 @@ function parseUserInput(input: string) {
 
 export default function TimezonePage({ params }: TimezonePageProps) {
   const router = useRouter();
-
-  const [selectedCountries, setSelectedCountries] = useState<Country[]>([]);
   const [isChanging, setIsChanging] = useState(false);
   const [newCode, setNewCode] = useState("");
   const [newTimeMode, setNewTimeMode] = useState<"now" | "custom">("custom");
-  const [newTimeValue, setNewTimeValue] = useState<string>("");
+  const [newTimeValue, setNewTimeValue] = useState<DateTime | null>(null);
   const [error, setError] = useState("");
+  const [showPopular, setShowPopular] = useState(true);
+  const [selectedCountries, setSelectedCountries] = useState<Country[]>([]);
+  const [currentTime, setCurrentTime] = useState<DateTime>(() => DateTime.now()); // Initial for SSR
 
-  const { input } = use(params);
+  const resolvedParams = use(params);
+  const { input } = resolvedParams;
 
-  if (!input || input.length < 2) {
+  if (!input || input.length < 3) {
     return (
-      <WarningScreen
-        title="Warning"
-        message="Invalid or incomplete input!"
-        usageExample="www.timezone.baby/CETnow or /PST1330 or /TR1330"
-        validCodes={EXAMPLE_CODES}
+      <WarningScreen 
+        title="Invalid Input" 
+        message="Your input is too short or incomplete. Please provide a valid code and time." 
+        usageExample="TRnow or CET1330" 
+        validCodes={["TR", "US", "FR", "DE", "GB", "CET", "IST", "PST", "UTC", "EST"]} 
       />
     );
   }
@@ -146,280 +348,409 @@ export default function TimezonePage({ params }: TimezonePageProps) {
   const parsed = parseUserInput(input);
   if (!parsed) {
     return (
-      <WarningScreen
-        title="Warning"
-        message={`Could not interpret "${input}".`}
-        usageExample="www.timezone.baby/CETnow or /IST1330 or /TRnow"
-        validCodes={EXAMPLE_CODES}
+      <WarningScreen 
+        title="Unrecognized Input" 
+        message={`Couldn't parse "${input}". Make sure your code is valid and time is HHMM or 'now'.`} 
+        usageExample="TR1330 or ISTnow" 
+        validCodes={["TR", "US", "FR", "DE", "GB", "CET", "IST", "PST", "UTC", "EST"]} 
       />
     );
   }
 
   const { zoneInfo, timePart } = parsed;
 
+  // Fix: Client-only interval for live updates
+  useEffect(() => {
+    if (timePart !== "now") return;
+    if (typeof window === 'undefined') return; // SSR guard
+
+    const interval = setInterval(() => {
+      setCurrentTime(DateTime.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timePart]);
+
   let baseTime: DateTime;
   if (timePart === "now") {
-    baseTime = DateTime.now().setZone(zoneInfo.timezone);
+    baseTime = currentTime.setZone(zoneInfo.timezone);
   } else {
     const hour = parseInt(timePart.substring(0, 2), 10);
     const minute = parseInt(timePart.substring(2, 4), 10);
-    baseTime = DateTime.fromObject({ hour, minute }, { zone: zoneInfo.timezone });
-    if (!baseTime.isValid) {
-      return (
-        <WarningScreen
-          title="Warning"
-          message="Invalid time or time zone."
-          usageExample="www.timezone.baby/CETnow or /IST1330 or /TRnow"
-          validCodes={EXAMPLE_CODES}
-        />
-      );
+    baseTime = DateTime.fromObject({ hour, minute, second: 0 }, { zone: zoneInfo.timezone });
+    if (!baseTime.isValid || hour > 23 || minute > 59) {
+      return <WarningScreen title="Invalid Time" message="The time you entered isn't valid (must be 00:00 to 23:59)." usageExample="TR1430 or CETnow" validCodes={["TR", "US", "CET", "PST"]} />;
     }
   }
 
-  const formattedLocalTime = baseTime.toFormat("hh:mm a"); // 12-hour format (e.g., "2:40 PM")
+  const formattedLocalTime = timePart === "now" 
+    ? baseTime.toFormat("HH:mm:ss")
+    : baseTime.toFormat("HH:mm");
 
-  // Dynamic meta data for link previews
-  const pageTitle = `Timezone Baby: ${
-    timePart === "now"
-      ? `Current Time in ${zoneInfo.displayName}`
-      : `${formattedLocalTime} ${zoneInfo.displayName} Time`
-  }`;
-  const pageDescription = `Check the time in ${zoneInfo.displayName} (${
-    timePart === "now" ? "now" : formattedLocalTime
-  }) with Timezone Baby!`;
-  const pageImage = zoneInfo.flagEmoji
-    ? `/flags/${parsed.codePart.toLowerCase()}.png` // Hypothetical flag image path
-    : "https://www.timezone.baby/favicon.ico"; // Fallback
+  const pageTitle = timePart === "now" 
+    ? `Time Zone Baby: Current Time in ${zoneInfo.displayName}` 
+    : `Time Zone Baby: ${formattedLocalTime} in ${zoneInfo.displayName}`;
 
-  function getCountryTime(timezone: string) {
+  const getCountryTime = useMemo(() => (timezone: string) => {
     try {
-      return baseTime.setZone(timezone).toFormat("hh:mm a");
-    } catch {
-      return baseTime.setZone("UTC").toFormat("hh:mm a");
+      const refTime = timePart === "now" ? currentTime : baseTime;
+      return timePart === "now" 
+        ? refTime.setZone(timezone).toFormat("HH:mm:ss")
+        : refTime.setZone(timezone).toFormat("HH:mm");
+    } catch (err) {
+      console.warn("Timezone conversion failed:", err);
+      return (timePart === "now" ? currentTime : baseTime).setZone("UTC").toFormat("HH:mm");
     }
-  }
+  }, [currentTime, baseTime, timePart]);
 
-  function handleClearAll() {
-    setSelectedCountries([]);
-  }
+  const handleClearAll = () => setSelectedCountries([]);
+  const handleRemoveCountry = (code: string) => setSelectedCountries(prev => prev.filter(c => c.code !== code));
 
-  function handleChangeSubmit(e: React.FormEvent) {
+  const handleChangeSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
 
-    if (!newCode || newCode.trim().length < 2) {
-      setError("Please enter a valid code (e.g., TR, CET, PST, UTC).");
+    const trimmedCode = newCode.trim().toUpperCase();
+    if (!trimmedCode || trimmedCode.length < 2) {
+      setError("Enter a valid code (e.g., TR, CET, US).");
       return;
     }
 
-    const upperNewCode = newCode.trim().toUpperCase();
-
     if (newTimeMode === "now") {
-      router.push(`/${upperNewCode}now`);
+      router.push(`/${trimmedCode}now`);
       return;
     }
 
     if (!newTimeValue) {
-      setError("Please pick a valid time or choose 'now'.");
-      return;
-    }
-    const sanitizedTime = newTimeValue.replace(":", "");
-    if (sanitizedTime.length !== 4 || isNaN(Number(sanitizedTime))) {
-      setError("Time must be in HH:mm format.");
+      setError("Select a time or choose 'now'.");
       return;
     }
 
-    router.push(`/${upperNewCode}${sanitizedTime}`);
-  }
+    const hour = newTimeValue.hour.toString().padStart(2, '0');
+    const minute = newTimeValue.minute.toString().padStart(2, '0');
+    const sanitizedTime = `${hour}${minute}`;
+    router.push(`/${trimmedCode}${sanitizedTime}`);
+  };
+
+  const popularTimezones = [
+    { name: "CET (Paris)", timezone: "Europe/Paris", flagComponent: <Flags.FR className="w-6 h-4" />, code: "CET" },
+    { name: "IST (India)", timezone: "Asia/Kolkata", flagComponent: <Flags.IN className="w-6 h-4" />, code: "IST" },
+    { name: "PST (Los Angeles)", timezone: "America/Los_Angeles", flagComponent: <Flags.US className="w-6 h-4" />, code: "PST" },
+    { name: "UTC (Universal)", timezone: "UTC", flagComponent: <GlobeAltIcon className="w-6 h-4 text-blue-500" />, code: "UTC" },
+    { name: "Istanbul (TR)", timezone: "Europe/Istanbul", flagComponent: <Flags.TR className="w-6 h-4" />, code: "TR" },
+    { name: "EST (New York)", timezone: "America/New_York", flagComponent: <Flags.US className="w-6 h-4" />, code: "EST" },
+    { name: "JST (Tokyo)", timezone: "Asia/Tokyo", flagComponent: <Flags.JP className="w-6 h-4" />, code: "JST" },
+  ];
+
+  const handleAddPopular = (tz: { name: string; timezone: string; flagComponent: React.ReactNode; code: string }) => {
+    const existing = selectedCountries.find(c => c.timezone === tz.timezone);
+    if (!existing) {
+      const mockCountry: Country & { flagComponent: React.ReactNode } = {
+        name: tz.name,
+        code: tz.code,
+        timezone: tz.timezone,
+        flag: "", // Dummy
+        flagComponent: tz.flagComponent,
+      };
+      setSelectedCountries(prev => [...prev, mockCountry]);
+    }
+  };
 
   return (
-    <>
-      <Head>
-        <title>{pageTitle}</title>
-        <meta name="description" content={pageDescription} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={`https://www.timezone.baby/${input}`} />
-        <meta property="og:image" content={pageImage} />
-      </Head>
-      <div className="flex flex-col lg:flex-row min-h-screen bg-gray-50 text-gray-900">
-        {/* Left Panel */}
-        <div className="lg:w-1/2 p-6 lg:p-8 border-b lg:border-r border-gray-200">
-          <h1 className="text-2xl lg:text-3xl font-bold mb-6 hover:underline">
-            <Link href="/">Time Zone Baby</Link>
-          </h1>
+    <ThemeProvider theme={theme}>
+      <LocalizationProvider dateAdapter={AdapterLuxon}>
+        <Head>
+          <title>{pageTitle}</title>
+          <meta name="description" content={`Explore the time in ${zoneInfo.displayName} and compare with other timezones`} />
+        </Head>
+        
+        <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+          {/* Header */}
+ 
 
-          <div className="mb-8 p-4 bg-blue-50 rounded-lg">
-            <p className="text-lg font-semibold text-blue-800">
-              Code / TZ: {zoneInfo.displayName} {zoneInfo.flagEmoji}
-            </p>
-            <p className="text-lg font-semibold text-blue-800">Time: {formattedLocalTime}</p>
-            <p className="text-sm text-gray-600 mt-2">
-              (Local time in {zoneInfo.timezone})
-            </p>
-
-            {!isChanging && (
-              <button
-                onClick={() => setIsChanging(true)}
-                className="mt-4 px-3 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-              >
-                Change Country / TZ & Time
-              </button>
-            )}
-
-            {isChanging && (
-              <form onSubmit={handleChangeSubmit} className="mt-4 bg-white p-4 rounded shadow">
-                {error && <div className="text-red-600 mb-2">{error}</div>}
-                <div className="mb-2">
-                  <label className="block mb-1 font-semibold text-gray-700">
-                    New Code (e.g., TR, CET, PST, UTC)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="TR or CET or PST"
-                    className="border border-gray-300 rounded w-full p-2 text-gray-900"
-                    value={newCode}
-                    onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+          <Container maxWidth="lg">
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 3, pb: 4 }}>
+              
+              {/* Left Panel */}
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                
+                {/* Current Timezone Card */}
+                <Card>
+                  <CardHeader
+                    title="Current Timezone"
+                    action={
+                      !isChanging && (
+                        <Button
+                          onClick={() => setIsChanging(true)}
+                          variant="contained"
+                          size="small"
+                          color="primary"
+                        >
+                          Change
+                        </Button>
+                      )
+                    }
+                    titleTypographyProps={{ variant: "h6", color: "text.primary", fontWeight: 600 }}
                   />
-                </div>
-                <div className="mb-2">
-                  <label className="block mb-1 font-semibold text-gray-700">Time Mode</label>
-                  <div className="flex items-center gap-4">
-                    <label className="inline-flex items-center">
-                      <input
-                        type="radio"
-                        name="timeMode"
-                        value="now"
-                        checked={newTimeMode === "now"}
-                        onChange={() => setNewTimeMode("now")}
-                        className="mr-1"
-                      />
-                      Now
-                    </label>
-                    <label className="inline-flex items-center">
-                      <input
-                        type="radio"
-                        name="timeMode"
-                        value="custom"
-                        checked={newTimeMode === "custom"}
-                        onChange={() => setNewTimeMode("custom")}
-                        className="mr-1"
-                      />
-                      Custom
-                    </label>
-                  </div>
-                </div>
-                {newTimeMode === "custom" && (
-                  <div className="mb-2">
-                    <label
-                      htmlFor="time-picker"
-                      className="block mb-1 font-semibold text-gray-700"
-                    >
-                      Pick Time (HH:mm)
-                    </label>
-                    <TimePicker
-                      id="time-picker"
-                      onChange={(value) => setNewTimeValue(value || "")}
-                      value={newTimeValue}
-                      format="HH:mm"
-                      clearIcon={null}
-                      className="react-time-picker"
-                      disableClock={false}
+                  <CardContent>
+                    <Box sx={{ textAlign: "center", py: 2 }}>
+                      <Box sx={{ mx: "auto", mb: 3, width: 48, height: 32 }}>
+                        {zoneInfo.flagComponent}
+                      </Box>
+                      <Typography variant="h3" color="primary" sx={{ fontWeight: 600, mb: 2 }}>
+                        {zoneInfo.displayName}
+                      </Typography>
+                      <Typography 
+                        variant="h2" 
+                        color="text.primary" 
+                        sx={{ 
+                          fontFamily: "monospace", 
+                          fontSize: { xs: "2.5rem", md: "3rem" },
+                          fontWeight: 600,
+                          mb: 2
+                        }}
+                        suppressHydrationWarning // Fix: Suppress mismatch for live time
+                      >
+                        {formattedLocalTime}
+                      </Typography>
+                      {timePart === "now" && (
+                        <Chip 
+                          label="🔴 Live" 
+                          color="success" 
+                          size="small" 
+                          sx={{ 
+                            fontWeight: 600,
+                            backgroundColor: "#34a853",
+                            color: "white"
+                          }} 
+                        />
+                      )}
+                      <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
+                        {zoneInfo.timezone}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+
+                {/* Change Settings Card */}
+                {isChanging && (
+                  <Card>
+                    <CardHeader 
+                      title="Change Settings" 
+                      titleTypographyProps={{ variant: "h6", color: "text.primary", fontWeight: 600 }}
                     />
-                  </div>
+                    <CardContent>
+                      <Box component="form" onSubmit={handleChangeSubmit} sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {error && (
+                          <Alert severity="error" sx={{ borderRadius: 2 }}>
+                            {error}
+                          </Alert>
+                        )}
+                        
+                        <TextField
+                          label="Country or Timezone Code"
+                          placeholder="e.g., TR, CET, PST, US"
+                          value={newCode}
+                          onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+                          variant="outlined"
+                          fullWidth
+                          helperText="Enter 2-letter country code or timezone abbreviation"
+                        />
+                        
+                        <FormControl>
+                          <FormLabel sx={{ color: "text.primary", fontWeight: 500, mb: 1 }}>
+                            Time Mode
+                          </FormLabel>
+                          <RadioGroup
+                            value={newTimeMode}
+                            onChange={(e) => setNewTimeMode(e.target.value as "now" | "custom")}
+                            row
+                            sx={{ gap: 2 }}
+                          >
+                            <FormControlLabel 
+                              value="now" 
+                              control={<Radio color="primary" />} 
+                              label="Now (Live)" 
+                            />
+                            <FormControlLabel 
+                              value="custom" 
+                              control={<Radio color="primary" />} 
+                              label="Custom Time" 
+                            />
+                          </RadioGroup>
+                        </FormControl>
+                        
+                        {newTimeMode === "custom" && (
+                          <TimePicker
+                            label="Select Time"
+                            value={newTimeValue}
+                            onChange={setNewTimeValue}
+                            sx={{ width: "100%" }}
+                          />
+                        )}
+                        
+                        <Box sx={{ display: "flex", gap: 2 }}>
+                          <Button type="submit" variant="contained" fullWidth size="large">
+                            Update Timezone
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setIsChanging(false);
+                              setError("");
+                              setNewCode("");
+                              setNewTimeValue(null);
+                              setNewTimeMode("custom");
+                            }}
+                            variant="outlined"
+                            fullWidth
+                            size="large"
+                          >
+                            Cancel
+                          </Button>
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
                 )}
-                <button
-                  type="submit"
-                  className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Update
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsChanging(false);
-                    setError("");
-                    setNewCode("");
-                    setNewTimeValue("");
-                    setNewTimeMode("custom");
+
+                {/* Selected Comparisons */}
+                {selectedCountries.length > 0 && (
+                  <Card>
+                    <CardHeader
+                      title="Selected Comparisons"
+                      action={
+                        <Button
+                          onClick={handleClearAll}
+                          size="small"
+                          color="primary"
+                          startIcon={<XMarkIcon className="w-4 h-4" />}
+                        >
+                          Clear All
+                        </Button>
+                      }
+                      titleTypographyProps={{ variant: "h6", color: "text.primary", fontWeight: 600 }}
+                    />
+                    <CardContent>
+                      <List sx={{ maxHeight: 400, overflow: "auto" }}>
+                        {selectedCountries.map((country) => (
+                          <ListItem
+                            key={country.code}
+                            secondaryAction={
+                              <IconButton 
+                                edge="end" 
+                                onClick={() => handleRemoveCountry(country.code)}
+                                size="small"
+                              >
+                                <XMarkIcon className="w-4 h-4" />
+                              </IconButton>
+                            }
+                            sx={{ px: 1 }}
+                          >
+                            <ListItemButton sx={{ borderRadius: 2, py: 2 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 2, width: "100%" }}>
+                                <Box sx={{ width: 32, height: 20 }}>
+                                  {country.flagComponent}
+                                </Box>
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <Typography variant="body1" color="text.primary" fontWeight={500}>
+                                    {country.name}
+                                  </Typography>
+                                  <Typography 
+                                    variant="body2" 
+                                    color="primary" 
+                                    sx={{ 
+                                      fontFamily: "monospace",
+                                      fontWeight: 600,
+                                      fontSize: "1.1rem"
+                                    }}
+                                    suppressHydrationWarning // Fix: Suppress mismatch for live comparison times
+                                  >
+                                    {getCountryTime(country.timezone)}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {country.timezone}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </ListItemButton>
+                          </ListItem>
+                        ))}
+                      </List>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Popular Timezones */}
+                <Card>
+                  <CardHeader
+                    title="Popular Timezones"
+                    action={
+                      <IconButton onClick={() => setShowPopular(!showPopular)}>
+                        {showPopular ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}
+                      </IconButton>
+                    }
+                    titleTypographyProps={{ variant: "h6", color: "text.primary", fontWeight: 600 }}
+                  />
+                  <Collapse in={showPopular}>
+                    <CardContent>
+                      <List>
+                        {popularTimezones.map((tz) => (
+                          <ListItem key={tz.timezone} sx={{ px: 1 }}>
+                            <ListItemButton 
+                              onClick={() => handleAddPopular(tz)}
+                              sx={{ borderRadius: 2, py: 2 }}
+                            >
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 2, width: "100%" }}>
+                                <Box sx={{ width: 32, height: 20 }}>
+                                  {tz.flagComponent}
+                                </Box>
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <Typography variant="body1" color="text.primary" fontWeight={500}>
+                                    {tz.name}
+                                  </Typography>
+                                  <Typography 
+                                    variant="body2" 
+                                    color="primary"
+                                    sx={{ 
+                                      fontFamily: "monospace",
+                                      fontWeight: 600
+                                    }}
+                                    suppressHydrationWarning // Fix: Suppress mismatch for live popular times
+                                  >
+                                    {getCountryTime(tz.timezone)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </ListItemButton>
+                          </ListItem>
+                        ))}
+                      </List>
+                    </CardContent>
+                  </Collapse>
+                </Card>
+              </Box>
+
+              {/* Right Panel - Country Selector */}
+              <Box>
+                <CountrySelector
+                  onSelectCountry={(country) => {
+                    const FlagComponent = Flags[country.code.toUpperCase() as keyof typeof Flags] as FlagComponent;
+                    setSelectedCountries((prev) =>
+                      prev.some((x) => x.code === country.code) 
+                        ? prev 
+                        : [...prev, { 
+                            ...country, 
+                            flagComponent: <FlagComponent className="w-6 h-4" /> 
+                          }]
+                    );
                   }}
-                  className="ml-2 mt-2 px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </form>
-            )}
-          </div>
-
-          {selectedCountries.length > 0 && (
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Selected Countries / Timezones</h2>
-                <button
-                  onClick={handleClearAll}
-                  className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-transform transform hover:scale-105"
-                >
-                  Clear All
-                </button>
-              </div>
-              <div className="space-y-3">
-                {selectedCountries.map((c) => (
-                  <div
-                    key={c.code}
-                    className="p-4 bg-white rounded-lg shadow flex items-center gap-4 transition-transform transform hover:scale-105"
-                  >
-                    <span className="text-2xl">{c.flag}</span>
-                    <div>
-                      <h3 className="font-semibold">{c.name}</h3>
-                      <p className="text-gray-600">
-                        {getCountryTime(c.timezone)} ({c.timezone})
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold mb-4">Popular Timezones</h2>
-            <div className="space-y-3">
-              {[
-                { name: "CET (Paris)", zone: "Europe/Paris", flag: "🇫🇷" },
-                { name: "IST (India)", zone: "Asia/Kolkata", flag: "🇮🇳" },
-                { name: "PST (LA)", zone: "America/Los_Angeles", flag: "🇺🇸" },
-                { name: "UTC", zone: "UTC", flag: "🌐" },
-                { name: "Istanbul", zone: "Europe/Istanbul", flag: "🇹🇷" },
-              ].map((tz) => (
-                <div
-                  key={tz.zone}
-                  className="p-4 bg-white rounded-lg shadow flex items-center gap-4 transition-transform transform hover:scale-105"
-                >
-                  <span className="text-2xl">{tz.flag}</span>
-                  <div>
-                    <h3 className="font-semibold">{tz.name}</h3>
-                    <p className="text-gray-600">
-                      {baseTime.setZone(tz.zone).toFormat("hh:mm a")} ({tz.zone})
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Panel */}
-        <div className="lg:w-1/2 p-6 lg:p-8 bg-white">
-          <CountrySelector
-            onSelectCountry={(c) =>
-              setSelectedCountries((prev) =>
-                prev.some((x) => x.code === c.code) ? prev : [...prev, c]
-              )
-            }
-          />
-        </div>
-      </div>
-    </>
+                />
+              </Box>
+            </Box>
+          </Container>
+        </Box>
+      </LocalizationProvider>
+    </ThemeProvider>
   );
 }

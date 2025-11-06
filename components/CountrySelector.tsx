@@ -3,31 +3,56 @@
 import React, { useState, useMemo } from 'react';
 import countriesData from 'world-countries';
 import moment from 'moment-timezone';
-import flags from 'emoji-flags';
+import * as Flags from 'country-flag-icons/react/3x2'; // Fix: * as import
+import {
+  Box,
+  TextField,
+  Typography,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  ListItemIcon,
+  Collapse,
+  Card,
+  CardContent,
+  InputAdornment,
+  Chip,
+} from '@mui/material';
+import {
+  Search as SearchIcon,
+  ExpandLess,
+  ExpandMore,
+} from '@mui/icons-material';
+
+// FlagComponent type
+type FlagComponent = React.ComponentType<{ className?: string; title?: string }>;
 
 export interface Country {
   name: string;
   timezone: string;
   flag: string;
   code: string;
+  flagComponent?: React.ReactNode;
 }
 
 export interface CountrySelectorProps {
   onSelectCountry: (country: Country) => void;
 }
 
-const getFlagEmoji = (countryCode: string) => {
-  return flags.countryCode(countryCode)?.emoji || '🏳';
+const getFlagComponent = (countryCode: string): React.ReactNode => {
+  try {
+    const FlagComponent = Flags[countryCode.toUpperCase() as keyof typeof Flags] as FlagComponent;
+    return FlagComponent ? <FlagComponent className="w-6 h-4" /> : <span>🏳️</span>;
+  } catch {
+    return <span>🏳️</span>;
+  }
 };
 
 const useGroupedCountries = () => {
   return useMemo(() => {
     const grouped: Record<string, Country[]> = {};
 
-    // Debug: Log countriesData to verify it's loaded correctly
-    console.log('countriesData:', countriesData);
-
-    // Ensure countriesData is an array
     if (!Array.isArray(countriesData)) {
       console.error('countriesData is not an array:', countriesData);
       return [];
@@ -39,16 +64,14 @@ const useGroupedCountries = () => {
 
       const code = country.cca2;
       const timezones = moment.tz.zonesForCountry(code);
-
-      // Emniyetli şekilde kontrol yapıyoruz
-      const primaryTimezone =
-        timezones && timezones.length > 0 ? timezones[0] : 'UTC';
+      const primaryTimezone = timezones && timezones.length > 0 ? timezones[0] : 'UTC';
 
       grouped[region].push({
         name: country.name.common,
         timezone: primaryTimezone,
-        flag: getFlagEmoji(code),
+        flag: code,
         code: code.toLowerCase(),
+        flagComponent: getFlagComponent(code),
       });
     });
 
@@ -95,72 +118,185 @@ const CountrySelector: React.FC<CountrySelectorProps> = ({ onSelectCountry }) =>
     [search, allCountries]
   );
 
-  return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-gray-800">Select a Country</h2>
-      <input
-        type="text"
-        placeholder="Search country..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full p-3 border border-gray-300 rounded-lg shadow focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      />
+  // Continent display names
+  const getContinentDisplayName = (continent: string) => {
+    const names: Record<string, string> = {
+      'Africa': 'Africa',
+      'Americas': 'Americas', 
+      'Antarctic': 'Antarctic',
+      'Asia': 'Asia',
+      'Europe': 'Europe',
+      'Oceania': 'Oceania',
+      'Other': 'Other Regions'
+    };
+    return names[continent] || continent;
+  };
 
-      {/* Eğer arama yapılıyorsa (search doluysa) sonuçlar listelenir, değilse kıtalar listelenir */}
-      {filteredCountries ? (
-        <div className="space-y-2">
-          {filteredCountries.length > 0 ? (
-            filteredCountries.map((country, index) => (
-              <div
-                key={index}
-                onClick={() => onSelectCountry(country)}
-                className="cursor-pointer flex items-center gap-3 p-3 bg-white rounded-lg shadow hover:bg-blue-50 transition-colors"
-              >
-                <span className="text-2xl">{country.flag}</span>
-                <span className="text-gray-800 font-medium">{country.name}</span>
-                <span className="text-sm text-gray-500 ml-auto">
-                  {country.timezone}
-                </span>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-600 p-3">No matching countries found.</p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {groupedCountries.map((group) => (
-            <div key={group.continent} className="bg-gray-50 rounded-lg shadow">
-              <div
-                onClick={() => toggleGroup(group.continent)}
-                className="p-3 font-bold bg-gray-200 rounded-t-lg cursor-pointer flex justify-between items-center hover:bg-gray-300"
-              >
-                <span>{group.continent}</span>
-                <span className="text-sm">({group.countries.length})</span>
-              </div>
-              {expandedGroups.has(group.continent) && (
-                <div className="p-3 space-y-2">
-                  {group.countries.map((country) => (
-                    <div
-                      key={country.code}
-                      onClick={() => onSelectCountry(country)}
-                      className="cursor-pointer flex items-center gap-3 p-2 bg-white hover:bg-blue-50 rounded-md transition-colors"
-                    >
-                      <span className="text-2xl">{country.flag}</span>
-                      <span className="text-gray-800">{country.name}</span>
-                      <span className="text-sm text-gray-500 ml-auto">
-                        {country.timezone}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+  return (
+    <Card>
+      <CardContent>
+        <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
+          Select a Country
+        </Typography>
         
-      )}
-    </div>
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Search country..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon color="action" />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ mb: 3 }}
+        />
+
+        {filteredCountries ? (
+          <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+            {filteredCountries.length > 0 ? (
+              <List>
+                {filteredCountries.map((country) => (
+                  <ListItem key={country.code} disablePadding sx={{ mb: 1 }}>
+                    <ListItemButton 
+                      onClick={() => onSelectCountry(country)}
+                      sx={{ 
+                        borderRadius: 2,
+                        '&:hover': {
+                          backgroundColor: 'primary.light',
+                          '& .MuiListItemText-primary': {
+                            color: 'white',
+                          },
+                          '& .MuiListItemText-secondary': {
+                            color: 'white',
+                          }
+                        }
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 40 }}>
+                        <Box sx={{ width: 24, height: 16 }}>
+                          {country.flagComponent}
+                        </Box>
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={country.name}
+                        secondary={country.timezone}
+                        primaryTypographyProps={{
+                          fontWeight: 500,
+                          color: 'text.primary'
+                        }}
+                        secondaryTypographyProps={{
+                          color: 'text.secondary',
+                          fontSize: '0.75rem'
+                        }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography 
+                variant="body2" 
+                color="text.secondary" 
+                sx={{ 
+                  textAlign: 'center', 
+                  py: 3,
+                  fontStyle: 'italic'
+                }}
+              >
+                No matching countries found
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ maxHeight: 500, overflow: 'auto' }}>
+            {groupedCountries.map((group) => (
+              <Box key={group.continent} sx={{ mb: 2 }}>
+                <ListItemButton 
+                  onClick={() => toggleGroup(group.continent)}
+                  sx={{
+                    borderRadius: 2,
+                    backgroundColor: 'background.default',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    mb: 1,
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    }
+                  }}
+                >
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="subtitle1" fontWeight={600} color="text.primary">
+                          {getContinentDisplayName(group.continent)}
+                        </Typography>
+                        <Chip 
+                          label={group.countries.length} 
+                          size="small"
+                          sx={{ 
+                            backgroundColor: 'primary.main',
+                            color: 'white',
+                            fontWeight: 600
+                          }} 
+                        />
+                      </Box>
+                    }
+                  />
+                  {expandedGroups.has(group.continent) ? <ExpandLess /> : <ExpandMore />}
+                </ListItemButton>
+                
+                <Collapse in={expandedGroups.has(group.continent)} timeout="auto">
+                  <List sx={{ py: 0 }}>
+                    {group.countries.map((country) => (
+                      <ListItem key={country.code} disablePadding sx={{ mb: 0.5 }}>
+                        <ListItemButton 
+                          onClick={() => onSelectCountry(country)}
+                          sx={{ 
+                            borderRadius: 2,
+                            ml: 2,
+                            '&:hover': {
+                              backgroundColor: 'primary.light',
+                              '& .MuiListItemText-primary': {
+                                color: 'white',
+                              },
+                              '& .MuiListItemText-secondary': {
+                                color: 'white',
+                              }
+                            }
+                          }}
+                        >
+                          <ListItemIcon sx={{ minWidth: 40 }}>
+                            <Box sx={{ width: 24, height: 16 }}>
+                              {country.flagComponent}
+                            </Box>
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={country.name}
+                            secondary={country.timezone}
+                            primaryTypographyProps={{
+                              fontWeight: 500,
+                              color: 'text.primary'
+                            }}
+                            secondaryTypographyProps={{
+                              color: 'text.secondary',
+                              fontSize: '0.75rem'
+                            }}
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                </Collapse>
+              </Box>
+            ))}
+          </Box>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

@@ -3,7 +3,117 @@
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import countriesData from "world-countries";
-import { CheckCircleIcon } from "@heroicons/react/24/solid"; // For the check icon (install @heroicons/react if you haven't)
+import { CheckCircle as CheckCircleIcon } from "@mui/icons-material"; // MUI icon for check
+import {
+  ThemeProvider,
+  createTheme,
+  Container,
+  Box,
+  Typography,
+  TextField,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Alert,
+  Paper,
+  Divider,
+} from "@mui/material";
+
+import Head from "next/head";
+
+// Theme - Matching the previous page's theme, but with dark mode for home
+const theme = createTheme({
+  palette: {
+    mode: "dark",
+    primary: {
+      main: "#1a73e8",
+      light: "#4285f4",
+      dark: "#0d47a1",
+    },
+    secondary: {
+      main: "#5f6368",
+    },
+    background: {
+      default: "#121212", // Dark gradient simulation via Box
+      paper: "#1e1e1e",
+    },
+    text: {
+      primary: "#ffffff",
+      secondary: "#b3b3b3",
+    },
+    divider: "#333333",
+  },
+  shape: {
+    borderRadius: 8,
+  },
+  typography: {
+    fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+    h1: {
+      fontSize: "2.5rem",
+      fontWeight: 700,
+      lineHeight: 1.2,
+    },
+    body1: {
+      fontSize: "1rem",
+      lineHeight: 1.6,
+    },
+  },
+  components: {
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "rgba(30, 30, 30, 0.8)",
+          backdropFilter: "blur(10px)",
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          textTransform: "none",
+          fontWeight: 600,
+          fontSize: "0.875rem",
+          padding: "12px 24px",
+        },
+        contained: {
+          backgroundColor: "#1a73e8",
+          color: "white",
+          "&:hover": {
+            backgroundColor: "#0d47a1",
+            transform: "scale(1.05)",
+          },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 8,
+            backgroundColor: "#121212",
+            "& fieldset": {
+              borderColor: "#333333",
+            },
+            "&:hover fieldset": {
+              borderColor: "#555555",
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: "#1a73e8",
+            },
+          },
+        },
+      },
+    },
+  },
+});
 
 interface CountryItem {
   code: string;
@@ -18,7 +128,6 @@ export default function Home() {
   const [selectedCountry, setSelectedCountry] = useState<CountryItem | null>(null);
 
   // For time input
-  // "mode" can be "now" or "custom"
   const [timeMode, setTimeMode] = useState<"now" | "custom">("custom");
   const [time, setTime] = useState("");
 
@@ -72,157 +181,216 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 to-black text-white flex flex-col items-center justify-center p-8">
-      <div className="w-full max-w-md">
-        {/* Title */}
-        <h1 className="text-4xl font-extrabold text-center mb-6">
-          Welcome to TimeZone.Baby
-        </h1>
-        <p className="text-center text-gray-300 mb-8">
-          Choose a country and a time mode, then click “Go.”
-        </p>
+    <ThemeProvider theme={theme}>
+      <Head>
+        <title>TimeZone.Baby - Home</title>
+        <meta name="description" content="Choose a country and time to explore timezones" />
+      </Head>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          background: "linear-gradient(135deg, #121212 0%, #000000 100%)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          p: 3,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Gradient Overlay for depth */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "radial-gradient(circle at 20% 80%, rgba(26, 115, 232, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255, 0, 0, 0.1) 0%, transparent 50%)",
+            zIndex: 0,
+          }}
+        />
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-600 text-white p-3 rounded mb-4">{error}</div>
-        )}
+        <Container maxWidth="sm" sx={{ position: "relative", zIndex: 1 }}>
+          {/* Title */}
+          <Typography
+            variant="h1"
+            component="h1"
+            sx={{
+              textAlign: "center",
+              mb: 2,
+              fontWeight: 700,
+              color: "text.primary",
+              fontSize: { xs: "2rem", md: "2.5rem" },
+            }}
+          >
+            Welcome to TimeZone.Baby
+          </Typography>
+          <Typography
+            variant="body1"
+            sx={{
+              textAlign: "center",
+              mb: 4,
+              color: "text.secondary",
+            }}
+          >
+            Choose a country and a time mode, then click “Go.”
+          </Typography>
 
-        {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="bg-gray-800/80 rounded-md shadow-md p-6 flex flex-col gap-4"
-        >
-          {/* Country Search */}
-          <div>
-            <label
-              htmlFor="country-search"
-              className="block mb-1 font-semibold text-gray-200"
-            >
-              Search or Select a Country
-            </label>
-            <input
-              id="country-search"
-              type="text"
-              placeholder="Type name or code (e.g. TR, Turkey)..."
-              className="w-full p-2 rounded bg-gray-900 border border-gray-600 placeholder-gray-500
-                         focus:border-blue-500 focus:ring focus:ring-blue-500/20 transition-colors"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setSelectedCountry(null); // reset selected country if user changes search
-              }}
-            />
-
-            {search && (
-              <div className="max-h-40 overflow-y-auto bg-gray-900 border border-gray-600 mt-2 rounded">
-                {filteredCountries.length > 0 ? (
-                  filteredCountries.map((item) => {
-                    const isSelected = selectedCountry?.code === item.code;
-                    return (
-                      <div
-                        key={item.code}
-                        className={`px-3 py-2 flex items-center justify-between cursor-pointer 
-                                   transition-colors 
-                                   hover:bg-gray-700
-                                   ${isSelected ? "bg-green-600" : ""}`}
-                        onClick={() => {
-                          setSelectedCountry(item);
-                          setSearch(item.name);
-                        }}
-                      >
-                        <span>
-                          {item.name} ({item.code})
-                        </span>
-                        {isSelected && (
-                          <CheckCircleIcon className="w-5 h-5 text-white" />
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="px-3 py-2 text-gray-400">
-                    No matching countries found.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Time Input Mode */}
-          <div className="mt-4">
-            <label className="block mb-1 font-semibold text-gray-200">
-              Time Mode
-            </label>
-            <div className="flex gap-4 items-center">
-              {/* Radio for 'now' */}
-              <label className="inline-flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="timeMode"
-                  value="now"
-                  className="mr-1"
-                  checked={timeMode === "now"}
-                  onChange={() => setTimeMode("now")}
-                />
-                Now
-              </label>
-
-              {/* Radio for 'custom' */}
-              <label className="inline-flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="timeMode"
-                  value="custom"
-                  className="mr-1"
-                  checked={timeMode === "custom"}
-                  onChange={() => setTimeMode("custom")}
-                />
-                Custom (HHMM)
-              </label>
-            </div>
-          </div>
-
-          {/* If custom time is chosen, show input */}
-          {timeMode === "custom" && (
-            <div>
-              <label
-                htmlFor="time-input"
-                className="block mb-1 font-semibold text-gray-200 mt-2"
-              >
-                Time (HHMM)
-              </label>
-              <input
-                id="time-input"
-                type="text"
-                placeholder="e.g. 1330"
-                maxLength={4}
-                className="w-full p-2 rounded bg-gray-900 border border-gray-600 placeholder-gray-500
-                           focus:border-blue-500 focus:ring focus:ring-blue-500/20 transition-colors"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-              />
-            </div>
+          {/* Error Message */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+              {error}
+            </Alert>
           )}
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            className="mt-6 w-full py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold
-                       transition-transform hover:scale-105"
+          {/* Form */}
+          <Paper
+            component="form"
+            onSubmit={handleSubmit}
+            sx={{
+              p: 4,
+              borderRadius: 2,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+            }}
           >
-            Go
-          </button>
-        </form>
-      </div>
+            {/* Country Search */}
+            <Box>
+              <FormLabel sx={{ mb: 1, color: "text.primary", fontWeight: 600 }}>
+                Search or Select a Country
+              </FormLabel>
+              <TextField
+                placeholder="Type name or code (e.g. TR, Turkey)..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSelectedCountry(null); // reset selected country if user changes search
+                }}
+                fullWidth
+                variant="outlined"
+                size="small"
+              />
+              {search && (
+                <Paper
+                  sx={{
+                    mt: 1,
+                    maxHeight: 160,
+                    overflow: "auto",
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <List disablePadding>
+                    {filteredCountries.length > 0 ? (
+                      filteredCountries.map((item) => {
+                        const isSelected = selectedCountry?.code === item.code;
+                        return (
+                          <ListItem
+                            key={item.code}
+                            disablePadding
+                            onClick={() => {
+                              setSelectedCountry(item);
+                              setSearch(item.name);
+                            }}
+                            sx={{
+                              cursor: "pointer",
+                              "&:hover": {
+                                bgcolor: "action.hover",
+                              },
+                              bgcolor: isSelected ? "primary.main" : "transparent",
+                              color: isSelected ? "white" : "inherit",
+                            }}
+                          >
+                            <ListItemText
+                              primary={`${item.name} (${item.code})`}
+                              primaryTypographyProps={{
+                                fontWeight: isSelected ? 600 : 500,
+                              }}
+                            />
+                            {isSelected && (
+                              <ListItemIcon sx={{ minWidth: 32, justifyContent: "flex-end" }}>
+                                <CheckCircleIcon sx={{ color: "white", fontSize: 20 }} />
+                              </ListItemIcon>
+                            )}
+                          </ListItem>
+                        );
+                      })
+                    ) : (
+                      <ListItem disablePadding>
+                        <ListItemText primary="No matching countries found." sx={{ color: "text.secondary" }} />
+                      </ListItem>
+                    )}
+                  </List>
+                </Paper>
+              )}
+            </Box>
 
-      {/* Footer */}
-      <footer className="mt-12 text-sm text-gray-400">
-        Developed by{" "}
-        <span className="text-xl font-black text-blue-400">Can Matik</span>
-        <span className="ml-2 text-xl font-black text-red-500 animate-pulse">
-          With Love
-        </span>
-      </footer>
-    </div>
+            {/* Time Input Mode */}
+            <FormControl>
+              <FormLabel sx={{ color: "text.primary", fontWeight: 600 }}>
+                Time Mode
+              </FormLabel>
+              <RadioGroup
+                value={timeMode}
+                onChange={(e) => setTimeMode(e.target.value as "now" | "custom")}
+                row
+                sx={{ mt: 1 }}
+              >
+                <FormControlLabel value="now" control={<Radio />} label="Now" />
+                <FormControlLabel value="custom" control={<Radio />} label="Custom (HHMM)" />
+              </RadioGroup>
+            </FormControl>
+
+            {/* If custom time is chosen, show input */}
+            {timeMode === "custom" && (
+              <Box>
+                <FormLabel sx={{ mb: 1, color: "text.primary", fontWeight: 600 }}>
+                  Time (HHMM)
+                </FormLabel>
+                <TextField
+                  placeholder="e.g. 1330"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  inputProps={{ maxLength: 4 }}
+                />
+              </Box>
+            )}
+
+            {/* Submit Button */}
+            <Button type="submit" variant="contained" fullWidth size="large" sx={{ mt: 2 }}>
+              Go
+            </Button>
+          </Paper>
+        </Container>
+
+        {/* Footer */}
+        <Box sx={{ mt: 6, textAlign: "center" }}>
+          <Typography variant="body2" color="text.secondary">
+            Developed by{" "}
+            <Typography component="span" variant="body2" color="primary" fontWeight={700} sx={{ fontSize: "1.25rem" }}>
+              Can Matik
+            </Typography>
+            {" "}With{" "}
+            <Typography component="span" variant="body2" color="error" fontWeight={700} sx={{ fontSize: "1.25rem", animation: "pulse 2s infinite" }}>
+              Love
+            </Typography>
+          </Typography>
+        </Box>
+      </Box>
+
+      <style jsx global>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+      `}</style>
+    </ThemeProvider>
   );
 }
