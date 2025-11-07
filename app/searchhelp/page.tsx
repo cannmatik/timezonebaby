@@ -3,11 +3,141 @@
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import countriesData from "world-countries";
-import { CheckCircleIcon } from "@heroicons/react/24/solid";
-// npm i @heroicons/react
-import TimePicker from "react-time-picker";
-// npm i react-time-picker react-clock
-// Ayrıca import "react-time-picker/dist/TimePicker.css"; import "react-clock/dist/Clock.css";
+import { CheckCircle as CheckCircleIcon } from "@mui/icons-material";
+import { DateTime } from "luxon";
+
+import {
+  ThemeProvider,
+  createTheme,
+  Container,
+  Box,
+  Typography,
+  TextField,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Alert,
+  Paper,
+  Divider,
+} from "@mui/material";
+import { TimePicker } from "@mui/x-date-pickers/TimePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterLuxon } from "@mui/x-date-pickers/AdapterLuxon";
+
+import Head from "next/head";
+
+// Theme - Dark mode with gradient simulation
+const theme = createTheme({
+  palette: {
+    mode: "dark",
+    primary: {
+      main: "#1a73e8",
+      light: "#4285f4",
+      dark: "#0d47a1",
+    },
+    secondary: {
+      main: "#5f6368",
+    },
+    background: {
+      default: "#121212",
+      paper: "#1e1e1e",
+    },
+    text: {
+      primary: "#ffffff",
+      secondary: "#b3b3b3",
+    },
+    divider: "#333333",
+  },
+  shape: {
+    borderRadius: 8,
+  },
+  typography: {
+    fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+    h1: {
+      fontSize: "2.5rem",
+      fontWeight: 700,
+      lineHeight: 1.2,
+    },
+    body1: {
+      fontSize: "1rem",
+      lineHeight: 1.6,
+    },
+  },
+  components: {
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "rgba(30, 30, 30, 0.8)",
+          backdropFilter: "blur(10px)",
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          textTransform: "none",
+          fontWeight: 600,
+          fontSize: "0.875rem",
+          padding: "12px 24px",
+        },
+        contained: {
+          backgroundColor: "#1a73e8",
+          color: "white",
+          "&:hover": {
+            backgroundColor: "#0d47a1",
+            transform: "scale(1.05)",
+          },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 8,
+            backgroundColor: "#121212",
+            "& fieldset": {
+              borderColor: "#333333",
+            },
+            "&:hover fieldset": {
+              borderColor: "#555555",
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: "#1a73e8",
+            },
+          },
+        },
+      },
+    },
+    MuiTimePicker: {
+      styleOverrides: {
+        root: {
+          "& .MuiInputBase-root": {
+            borderRadius: 8,
+            backgroundColor: "#121212",
+            "& fieldset": {
+              borderColor: "#333333",
+            },
+            "&:hover fieldset": {
+              borderColor: "#555555",
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: "#1a73e8",
+            },
+          },
+        },
+      },
+    },
+  },
+});
 
 interface CountryItem {
   code: string;
@@ -19,14 +149,12 @@ export default function Home() {
 
   // Ülke arama + seçim
   const [search, setSearch] = useState("");
-  const [selectedCountry, setSelectedCountry] = useState<CountryItem | null>(
-    null
-  );
+  const [selectedCountry, setSelectedCountry] = useState<CountryItem | null>(null);
 
   // Zaman modu
   const [timeMode, setTimeMode] = useState<"now" | "custom">("custom");
-  // TimePicker'dan gelen değer "HH:mm" formatında olur
-  const [time, setTime] = useState<string>("");
+  // TimePicker değeri DateTime | null
+  const [timeValue, setTimeValue] = useState<DateTime | null>(null);
 
   const [error, setError] = useState("");
 
@@ -64,170 +192,230 @@ export default function Home() {
       return;
     }
 
-    // custom => TimePicker değeri "HH:mm"
-    if (!time) {
+    // custom => TimePicker değeri kontrol et
+    if (!timeValue) {
       setError("Please pick a valid time or choose 'now'.");
       return;
     }
 
-    // "HH:mm" -> "HHMM"
-    const sanitizedTime = time.replace(":", "");
-    if (sanitizedTime.length !== 4 || isNaN(Number(sanitizedTime))) {
-      setError("Time must be in HH:mm format.");
-      return;
-    }
+    // DateTime'dan HHMM çıkar
+    const hour = timeValue.hour.toString().padStart(2, "0");
+    const minute = timeValue.minute.toString().padStart(2, "0");
+    const sanitizedTime = `${hour}${minute}`;
 
     router.push(`/${selectedCountry.code.toLowerCase()}${sanitizedTime}`);
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 to-black text-white flex flex-col items-center justify-center p-8">
-      <div className="w-full max-w-md">
-        {/* Başlık */}
-        <h1 className="text-4xl font-extrabold text-center mb-6">
-          Welcome to TimeZone.Baby
-        </h1>
-        <p className="text-center text-gray-300 mb-8">
-          Choose a country and a time mode, then click “Go.”
-        </p>
-
-        {/* Hata */}
-        {error && (
-          <div className="bg-red-600 text-white p-3 rounded mb-4">{error}</div>
-        )}
-
-        {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="bg-gray-800/80 rounded-md shadow-md p-6 flex flex-col gap-4"
+    <ThemeProvider theme={theme}>
+      <LocalizationProvider dateAdapter={AdapterLuxon}>
+        <Head>
+          <title>TimeZone.Baby - Home</title>
+          <meta name="description" content="Choose a country and time to explore timezones" />
+        </Head>
+        <Box
+          sx={{
+            minHeight: "100vh",
+            background: "linear-gradient(135deg, #121212 0%, #000000 100%)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            p: 3,
+            position: "relative",
+            overflow: "hidden",
+          }}
         >
-          {/* Ülke arama */}
-          <div>
-            <label
-              htmlFor="country-search"
-              className="block mb-1 font-semibold text-gray-200"
-            >
-              Search or Select a Country
-            </label>
-            <input
-              id="country-search"
-              type="text"
-              placeholder="Type name or code (e.g. TR, Turkey)..."
-              className="w-full p-2 rounded bg-gray-900 border border-gray-600
-                         placeholder-gray-500 focus:border-blue-500
-                         focus:ring focus:ring-blue-500/20 transition-colors"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setSelectedCountry(null);
+          {/* Gradient Overlay for depth */}
+          <Box
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "radial-gradient(circle at 20% 80%, rgba(26, 115, 232, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255, 0, 0, 0.1) 0%, transparent 50%)",
+              zIndex: 0,
+            }}
+          />
+
+          <Container maxWidth="sm" sx={{ position: "relative", zIndex: 1 }}>
+            {/* Başlık */}
+            <Typography
+              variant="h1"
+              component="h1"
+              sx={{
+                textAlign: "center",
+                mb: 2,
+                fontWeight: 700,
+                color: "text.primary",
+                fontSize: { xs: "2rem", md: "2.5rem" },
               }}
-            />
+            >
+              Welcome to TimeZone.Baby
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: "center",
+                mb: 4,
+                color: "text.secondary",
+              }}
+            >
+              Choose a country and a time mode, then click “Go.”
+            </Typography>
 
-            {search && (
-              <div className="max-h-40 overflow-y-auto bg-gray-900 border border-gray-600 mt-2 rounded">
-                {filteredCountries.length > 0 ? (
-                  filteredCountries.map((item) => {
-                    const isSelected = selectedCountry?.code === item.code;
-                    return (
-                      <div
-                        key={item.code}
-                        className={`px-3 py-2 flex items-center justify-between cursor-pointer 
-                                   transition-colors hover:bg-gray-700
-                                   ${isSelected ? "bg-green-600" : ""}`}
-                        onClick={() => {
-                          setSelectedCountry(item);
-                          setSearch(item.name);
-                        }}
-                      >
-                        <span>
-                          {item.name} ({item.code})
-                        </span>
-                        {isSelected && (
-                          <CheckCircleIcon className="w-5 h-5 text-white" />
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="px-3 py-2 text-gray-400">
-                    No matching countries found.
-                  </div>
-                )}
-              </div>
+            {/* Hata */}
+            {error && (
+              <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+                {error}
+              </Alert>
             )}
-          </div>
 
-          {/* Zaman Modu */}
-          <div>
-            <label className="block mb-1 font-semibold text-gray-200">
-              Time Mode
-            </label>
-            <div className="flex items-center gap-4">
-              <label className="inline-flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="timeMode"
-                  value="now"
-                  checked={timeMode === "now"}
-                  onChange={() => setTimeMode("now")}
-                  className="mr-1"
+            {/* Form */}
+            <Paper
+              component="form"
+              onSubmit={handleSubmit}
+              sx={{
+                p: 4,
+                borderRadius: 2,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
+              }}
+            >
+              {/* Ülke arama */}
+              <Box>
+                <FormLabel sx={{ mb: 1, color: "text.primary", fontWeight: 600 }}>
+                  Search or Select a Country
+                </FormLabel>
+                <TextField
+                  placeholder="Type name or code (e.g. TR, Turkey)..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setSelectedCountry(null);
+                  }}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
                 />
-                Now
-              </label>
-              <label className="inline-flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="timeMode"
-                  value="custom"
-                  checked={timeMode === "custom"}
-                  onChange={() => setTimeMode("custom")}
-                  className="mr-1"
-                />
-                Custom (HH:mm)
-              </label>
-            </div>
-          </div>
+                {search && (
+                  <Paper
+                    sx={{
+                      mt: 1,
+                      maxHeight: 160,
+                      overflow: "auto",
+                      border: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  >
+                    <List disablePadding>
+                      {filteredCountries.length > 0 ? (
+                        filteredCountries.map((item) => {
+                          const isSelected = selectedCountry?.code === item.code;
+                          return (
+                            <ListItem
+                              key={item.code}
+                              disablePadding
+                              onClick={() => {
+                                setSelectedCountry(item);
+                                setSearch(item.name);
+                              }}
+                              sx={{
+                                cursor: "pointer",
+                                "&:hover": {
+                                  bgcolor: "action.hover",
+                                },
+                                bgcolor: isSelected ? "primary.main" : "transparent",
+                                color: isSelected ? "white" : "inherit",
+                              }}
+                            >
+                              <ListItemText
+                                primary={`${item.name} (${item.code})`}
+                                primaryTypographyProps={{
+                                  fontWeight: isSelected ? 600 : 500,
+                                }}
+                              />
+                              {isSelected && (
+                                <ListItemIcon sx={{ minWidth: 32, justifyContent: "flex-end" }}>
+                                  <CheckCircleIcon sx={{ color: "white", fontSize: 20 }} />
+                                </ListItemIcon>
+                              )}
+                            </ListItem>
+                          );
+                        })
+                      ) : (
+                        <ListItem disablePadding>
+                          <ListItemText primary="No matching countries found." sx={{ color: "text.secondary" }} />
+                        </ListItem>
+                      )}
+                    </List>
+                  </Paper>
+                )}
+              </Box>
 
-          {/* Custom ise TimePicker göster */}
-          {timeMode === "custom" && (
-            <div className="mt-2">
-              <label
-                htmlFor="time-input"
-                className="block mb-1 font-semibold text-gray-200"
-              >
-                Pick Time
-              </label>
-              <TimePicker
-                id="time-input"
-                onChange={(value) => setTime(value || "")}
-                value={time}
-                format="HH:mm"
-                clearIcon={null}
-                className="react-time-picker"
-                disableClock={false} // clock görüntüsünü kapatmak isterseniz true yapabilirsiniz
-              />
-            </div>
-          )}
+              {/* Zaman Modu */}
+              <FormControl>
+                <FormLabel sx={{ color: "text.primary", fontWeight: 600 }}>
+                  Time Mode
+                </FormLabel>
+                <RadioGroup
+                  value={timeMode}
+                  onChange={(e) => setTimeMode(e.target.value as "now" | "custom")}
+                  row
+                  sx={{ mt: 1 }}
+                >
+                  <FormControlLabel value="now" control={<Radio />} label="Now" />
+                  <FormControlLabel value="custom" control={<Radio />} label="Custom (HH:mm)" />
+                </RadioGroup>
+              </FormControl>
 
-          {/* Buton */}
-          <button
-            type="submit"
-            className="mt-6 w-full py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold
-                       transition-transform hover:scale-105"
-          >
-            Go
-          </button>
-        </form>
-      </div>
+              {/* Custom ise TimePicker göster */}
+              {timeMode === "custom" && (
+                <Box>
+                  <FormLabel sx={{ mb: 1, color: "text.primary", fontWeight: 600 }}>
+                    Pick Time
+                  </FormLabel>
+                  <TimePicker
+                    value={timeValue}
+                    onChange={setTimeValue}
+                    ampm={false} // 24 saatlik format için
+                    sx={{ width: "100%" }}
+                  />
+                </Box>
+              )}
 
-      {/* Footer */}
-      <footer className="mt-12 text-sm text-gray-400">
-        Developed by{" "}
-        <span className="text-xl font-black text-blue-400">Can Matik</span>
-        <span className="ml-2 text-xl font-black text-red-500 animate-pulse">
-          With Love
-        </span>
-      </footer>
-    </div>
+              {/* Buton */}
+              <Button type="submit" variant="contained" fullWidth size="large" sx={{ mt: 2 }}>
+                Go
+              </Button>
+            </Paper>
+          </Container>
+
+          {/* Footer */}
+          <Box sx={{ mt: 6, textAlign: "center" }}>
+            <Typography variant="body2" color="text.secondary">
+              Developed by{" "}
+              <Typography component="span" variant="body2" color="primary" fontWeight={700} sx={{ fontSize: "1.25rem" }}>
+                Can Matik
+              </Typography>
+              {" "}With{" "}
+              <Typography component="span" variant="body2" color="error" fontWeight={700} sx={{ fontSize: "1.25rem", animation: "pulse 2s infinite" }}>
+                Love
+              </Typography>
+            </Typography>
+          </Box>
+        </Box>
+
+        <style jsx global>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+        `}</style>
+      </LocalizationProvider>
+    </ThemeProvider>
   );
 }
