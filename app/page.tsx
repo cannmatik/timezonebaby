@@ -225,7 +225,7 @@ export default function Home() {
               fontSize: { xs: "2rem", md: "2.5rem" },
             }}
           >
-            Welcome to TimeZone.Baby
+            Welcome to The TimeZone App
           </Typography>
           <Typography
             variant="body1"
